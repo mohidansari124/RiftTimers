@@ -1,0 +1,60 @@
+{
+  "name": "@rift/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build && node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "package": "electron-builder --win nsis --publish never"
+  },
+  "dependencies": {
+    "@rift/shared": "workspace:*",
+    "electron-store": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "socket.io-client": "latest",
+    "zustand": "latest",
+    "zod": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "@tailwindcss/vite": "latest",
+    "tailwindcss": "latest",
+    "vite": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "esbuild": "latest"
+  },
+  "build": {
+    "appId": "com.rifttimers.simulator",
+    "productName": "RiftTimers",
+    "directories": {
+      "output": "../../release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "description": "Standalone summoner spell simulation and shared timer testing",
+  "author": "RiftTimers contributors"
+}

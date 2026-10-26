@@ -1,0 +1,22 @@
+{
+  "name": "rifttimers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "pnpm --filter @rift/shared build && pnpm --filter @rift/server build && pnpm --filter @rift/desktop build",
+    "test": "vitest run",
+    "check": "pnpm -r typecheck",
+    "dist": "pnpm build && pnpm --filter @rift/desktop package",
+    "data": "node scripts/data.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "prettier": "^3.9.10",
+    "socket.io-client": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  },
+  "packageManager": "pnpm@11.25.0"
+}
