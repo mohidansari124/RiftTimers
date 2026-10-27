@@ -11,17 +11,17 @@ RiftTimers is an independent desktop **simulation and testing prototype**. It is
 
 ## Implemented boundaries
 
-- `LIVE_MATCH_ENABLED` is a compile-time `false`, with no user switch or environment override. The isolated game adapter throws instead of connecting to League.
-- Room admission requires `mode: simulation`; there is no live event type or live API adapter.
-- The desktop process checks the Windows process list every three seconds for `League of Legends.exe`. Detection, or a failed check, hides the overlay and blocks timer actions. Only the process name is checked: no process memory, injection, protected files, Vanguard interaction, or undocumented Riot endpoint.
-- The process check is a local misuse guard, **not** proof of approval, a security boundary, or a guarantee against all possible competitive use. A remote participant cannot establish another person's game status. Users must restrict all sessions to standalone testing. Browser development previews lack the Windows process guard and are development-only.
-- No Riot accounts, API keys, live game information, credentials, match history, or telemetry are collected.
+- v0.1.2 implements the user-requested automatic champion/spell import through the documented local Live Client Data API. `AUTOMATIC_LINEUP_ENABLED` describes adapter availability; a persisted setting lets users turn polling off. No automatic spell-cast or cooldown detection is implemented.
+- Room admission retains `mode: simulation` for protocol compatibility. The first online participant can share imported lineups; this label is not a compliance gate.
+- As of v0.1.1, the requested manual timers and desktop overlay remain available while League is open. The application no longer polls the process list or automatically pauses. No process memory, injection, protected files, Vanguard interaction, or undocumented Riot endpoint is used.
+- Running alongside League or accessing documented endpoints is not proof of Riot approval. The original disabled-adapter boundary has been superseded by the later explicit request for automatic lineup loading.
+- No account credentials, Riot API keys, match history or telemetry are collected. Local player identities are read transiently to identify the player’s team; only champion/spell rows are shared with room members.
 
 ## API investigation
 
 Data Dragon supplies documented champion names, icons, portraits and summoner definitions. All 173 champions and the nine CLASSIC-mode spells from patch 16.21.1 are bundled offline. The catalog records its source and retrieval time. `pnpm data` refreshes definitions and assets together; rebuilding updates both client and server.
 
-Riot documents a local Game Client API, including Live Client Data and event information. The League Client API has different support guarantees. Spectator endpoints concern active games and require an approved API-key deployment. None is connected here, because permitted technical access would not authorize cooldown tracking. Manual selection is the fallback.
+Riot documents a local Game Client API, including Live Client Data and event information. The League Client API has different support guarantees. Spectator endpoints concern active games and require an approved API-key deployment. Only the documented local active-player, player-list and game-stats endpoints are connected here. Manual selection remains the fallback. Using these documented endpoints does not imply approval for cooldown tracking.
 
 ## Accuracy and limitations
 

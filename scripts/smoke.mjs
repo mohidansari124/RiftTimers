@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { mainWindow } from './test-window.mjs';
+import { mainWindow, manualFixture } from "./test-window.mjs";
 const require = createRequire(process.env.RIFT_NODE_MODULES + "/package.json");
 const { _electron } = require("playwright");
 const desktop = path.resolve("apps/desktop");
@@ -14,8 +14,10 @@ const app = await _electron.launch({
   env: { ...process.env, RIFT_DEV: "0" },
   timeout: 30000,
 });
+let restore;
 try {
   const page = await mainWindow(app);
+  restore = await manualFixture(page);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.getByRole("heading", { name: "Every second counts." }).waitFor();
@@ -67,5 +69,6 @@ try {
     "Electron smoke passed: launch, timer, separate overlay, bidirectional IPC, setup and settings navigation.",
   );
 } finally {
+  if (restore) await restore();
   await app.close();
 }

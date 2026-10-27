@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { mainWindow } from './test-window.mjs';
+import { mainWindow, manualFixture } from "./test-window.mjs";
 const require = createRequire(process.env.RIFT_NODE_MODULES + "/package.json"),
   { _electron } = require("playwright");
 const desktop = path.resolve("apps/desktop"),
@@ -14,6 +14,7 @@ const server = spawn(process.execPath, ["apps/server/dist/index.js"], {
   stdio: "pipe",
 });
 const apps = [];
+const restores = [];
 try {
   for (let i = 0; i < 30; i++) {
     try {
@@ -32,6 +33,7 @@ try {
       }),
     );
   const [a, b] = await Promise.all(apps.map(mainWindow));
+  for (const p of [a, b]) restores.push(await manualFixture(p));
   for (const p of [a, b]) {
     await p.getByRole("button", { name: "Multiplayer", exact: true }).click();
   }
@@ -44,7 +46,6 @@ try {
   for (const p of [a, b])
     await p.getByRole("button", { name: "Dashboard", exact: true }).click();
   await a.waitForTimeout(4000);
-  if (await a.evaluate(() => window.rift.safety())) throw new Error('Timer UI test blocked: close League before running this simulation test. Room creation and joining succeeded.');
   await a
     .getByRole("button", { name: "Ahri Flash", exact: true })
     .first()
@@ -69,6 +70,7 @@ try {
     await p.getByRole("button", { name: "Leave room", exact: true }).click();
   }
 } finally {
+  for (const restore of restores) await restore();
   for (const app of apps) await app.close();
   server.kill();
 }

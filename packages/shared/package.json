@@ -2,7 +2,10 @@
   "name": "@rift/shared",
   "version": "0.1.0",
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./game-data": "./src/game-data.ts"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"

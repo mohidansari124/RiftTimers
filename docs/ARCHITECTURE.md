@@ -23,3 +23,15 @@ Context isolation, sandboxed renderers, disabled Node integration, restrictive C
 Settings use electron-store, presets use local storage, overlay bounds are saved with debouncing, and restored bounds are checked against attached displays. Debug output logs only revision/status to the local developer console. There is no analytics or log upload. Current timers are session-only; presets persist explicitly.
 
 The main window remains alive when minimized to the tray so it can maintain room connectivity. Hidden/expired timers do not generate network ticks. Static assets are bundled to avoid runtime CDN requests. Maximum overlay scaling may require manually enlarging its resizable window.
+
+## Automatic lineup (v0.1.2)
+
+The main process polls only three fixed HTTPS endpoints on `127.0.0.1:2999`: `activeplayer`, `playerlist`, and `gamestats`. Riot's bundled public root certificate validates TLS; there is no global certificate bypass or arbitrary request IPC. Each request has a two-second timeout and a 512 KiB response cap. A five-second delay follows each batch; batches cannot overlap. Turning off automatic setup stops API reads.
+
+The parser identifies the active player's team and requires five opponents on map 11. Raw internal names resolve localized champions/spells; Smite and Teleport variants normalize to their catalog definitions. Unknown or incomplete data produces a visible status and preserves the current lineup. Player identities are used transiently for team selection and are not sent to rooms or saved.
+
+The tracker emits new import sequences only when the lineup/spells change or game time rolls back by more than 15 seconds. Starting midgame or reconnecting does not reset timers; a fresh game clears timers. Imports preserve unchanged slot timers and known haste; changed champions/spells clear only affected slots. Detection requires a prior sample to distinguish a same-roster new game from reconnect, except for initial readings under 60 seconds.
+
+Shared rooms permit automatic import only from the first online participant in room order. The server enforces this, including failover when that participant leaves. Imported lineup updates use the same revision checks and broadcasts as manual actions. The existing `simulation` room mode string is a protocol label, not a restriction on where imported lineup data originated.
+
+The overlay uses `screen-saver` topmost priority and refreshes its z-order every two seconds while visible without requesting focus. Header and footer are native draggable regions; the lock button is explicitly non-draggable. Restricted overlay controls support lock/unlock, centering and raising the window. These desktop-window techniques do not guarantee visibility over exclusive fullscreen rendering; use Borderless mode. No injection or game-window modification is performed.

@@ -1,20 +1,20 @@
-# Validation — 26 October 2026
+# Validation — v0.1.2, 26 October 2026
 
 ## Passed
 
 - Strict TypeScript checks across desktop, shared and server packages.
-- 15 automated tests across the cooldown engine and real Socket.IO connections: haste, expiry, concurrent timers, reset/ready, adjustments, bounded undo, lineup reset, disabled live mode, insecure-server rejection, Smite cast lockout, room creation/joining, synchronization, stale-revision conflicts, duplicate-event handling, reconnect/state recovery, malformed events, heartbeat clock, rate limiting, leaving/presence and room expiration.
+- 23 automated tests: cooldowns, haste, expiry, reset/undo, simultaneous timers, schema validation, private rooms, reconnects, synchronization, deduplication, rate limits, expiration, automatic-import leadership/failover, localized champion/spell mapping, upgraded Smite/Teleport, unsupported/incomplete rosters, unknown identity, game-time rollback, unchanged timer preservation and settings migration.
+- Real HTTPS reads from Riot’s local game API using its published CA certificate. The running match supplied ten players; the mapper selected five opponents and correctly resolved both spell slots.
+- Electron end-to-end test against that live data: rendered champion portraits and both spell slots match the imported roster. A manually started timer survives repeated API refreshes.
+- Overlay remains visible and marked always-on-top; the larger header has a native drag region, lock/unlock changes native movable state, and Center moves it to the current display. Screenshot: `test-results/overlay-v012.png` (generated, ignored by Git).
 - Production renderer, Electron main/preload and server builds.
-- Electron desktop smoke test while League was not running: dashboard render, timer start, separate transparent overlay, bidirectional overlay/main IPC and navigation to champion/overlay settings. Screenshots are under `test-results/` (generated, ignored by Git).
-- Two full desktop instances created/joined the same room. The subsequent UI timer test was correctly blocked because League of Legends started running during validation. Server-level two-client timer synchronization and reverse reset passed independently.
-- Packaged `release/win-unpacked/RiftTimers.exe` launches with the bundled renderer and assets. With League running, timer buttons and overlay opening are disabled as intended.
-- NSIS Windows x64 installer generated successfully with application icon, shortcut and uninstall configuration.
+- Final packaged v0.1.2 passed the same live-game lineup/overlay smoke test, and the NSIS installer was generated successfully. Two separate Electron clients also passed room creation/joining, shared timer start and reverse-direction reset with fixture lineups.
 
-## Not verified here
+## Limits of verification
 
-- Installer wizard installation/uninstallation on a clean Windows machine; only its build and unpacked executable launch were verified.
-- Full two-Electron timer smoke test after League started (the guard was not bypassed).
-- Remote Internet hosting, two physical computers, Windows startup behavior, all hotkey collisions, multi-monitor rearrangement, or long-duration memory/CPU benchmarks.
-- Code signing, published updates, Riot approval/registration, and live-match integration are not supplied.
+- No claim of Riot approval or registration is made.
+- The test reads the running game’s documented API without changing League. It verifies native window flags and visibility, not actual pixel ordering over League’s focused fullscreen rendering. Use Borderless mode if exclusive fullscreen covers the overlay.
+- Physical pointer dragging, installer wizard installation/uninstallation on a clean Windows machine, remote hosting, two physical computers, Windows startup, every hotkey collision and long-running performance benchmarks were not verified here.
+- Game-start reset and reconnect behavior were exercised with fixtures; the real game was already running when read.
 
-The test scripts are included so remaining desktop scenarios can be repeated when League is closed. No game process was stopped or modified to make tests pass.
+The repeatable `scripts/game-overlay-smoke.mjs` needs a running Summoner’s Rift game with five opponents. Add `--packaged` to exercise the packaged executable. Fixture-based smoke tests temporarily disable automatic setup and restore the prior setting afterward. No game process was stopped, injected into, or modified to make a test pass.

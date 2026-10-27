@@ -9,8 +9,9 @@ import {
   screen,
 } from "electron";
 import Store from "electron-store";
-import { execFile } from "node:child_process";
 import path from "node:path";
+import { startGameClient } from "./game-client";
+import type { GameUpdate } from "@rift/shared/game-data";
 import {
   defaultSettings,
   settingsSchema,
@@ -30,11 +31,14 @@ let main: BrowserWindow,
   overlay: BrowserWindow,
   tray: Tray,
   quitting = false,
-  blocked = true,
   lastState: unknown;
-let settings = settingsSchema.safeParse(store.get("settings")).success
-  ? store.get("settings")
-  : defaultSettings;
+const parsedSettings = settingsSchema.safeParse(store.get("settings"));
+let settings = parsedSettings.success ? parsedSettings.data : defaultSettings;
+let gameUpdate: GameUpdate = {
+  status: "Waiting for League game data",
+  sequence: 0,
+  reset: false,
+};
 const dev = process.env.RIFT_DEV === "1";
 function trusted(e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) {
   return (
@@ -43,8 +47,11 @@ function trusted(e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) {
   );
 }
 function showOverlay(visible: boolean) {
-  if (visible && !blocked) overlay.show();
-  else overlay.hide();
+  if (visible) {
+    overlay.setAlwaysOnTop(true, "screen-saver");
+    overlay.showInactive();
+    overlay.moveTop();
+  } else overlay.hide();
 }
 function registerHotkey(value: string) {
   globalShortcut.unregisterAll();
@@ -55,21 +62,13 @@ function apply(s: Settings) {
   overlay.setOpacity(s.opacity);
   overlay.setMovable(!s.locked);
   overlay.setResizable(!s.locked);
-  if (s.x !== undefined && s.y !== undefined) overlay.setPosition(s.x, s.y);
+  if (
+    (s.x !== settings.x || s.y !== settings.y) &&
+    s.x !== undefined &&
+    s.y !== undefined
+  )
+    overlay.setPosition(s.x, s.y);
   app.setLoginItemSettings({ openAtLogin: s.startup });
-}
-function guard() {
-  execFile(
-    "tasklist.exe",
-    ["/FI", "IMAGENAME eq League of Legends.exe", "/FO", "CSV", "/NH"],
-    { windowsHide: true, timeout: 4000 },
-    (err, out) => {
-      blocked = !!err || out.toLowerCase().includes("league of legends.exe");
-      if (blocked) overlay?.hide();
-      for (const w of [main, overlay])
-        if (w && !w.isDestroyed()) w.webContents.send("safety", blocked);
-    },
-  );
 }
 function secure(w: BrowserWindow) {
   w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -116,8 +115,23 @@ app.whenReady().then(() => {
     alwaysOnTop: true,
     show: false,
     skipTaskbar: true,
+    fullscreenable: false,
+    minimizable: false,
     webPreferences,
   });
+  overlay.setAlwaysOnTop(true, "screen-saver");
+  const raiseOverlay = () => {
+    if (!overlay.isDestroyed() && overlay.isVisible()) {
+      overlay.setAlwaysOnTop(true, "screen-saver");
+      overlay.moveTop();
+    }
+  };
+  overlay.on("blur", raiseOverlay);
+  const topmostTimer = setInterval(raiseOverlay, 2000);
+  function sendSettings() {
+    for (const w of [main, overlay])
+      if (!w.isDestroyed()) w.webContents.send("settings:changed", settings);
+  }
   for (const w of [main, overlay]) secure(w);
   const load = (w: BrowserWindow, hash: string) =>
     dev
@@ -137,10 +151,13 @@ app.whenReady().then(() => {
   let boundsTimer: ReturnType<typeof setTimeout>;
   const saveBounds = () => {
     clearTimeout(boundsTimer);
-    boundsTimer = setTimeout(
-      () => store.set("bounds", overlay.getBounds()),
-      250,
-    );
+    boundsTimer = setTimeout(() => {
+      const bounds = overlay.getBounds();
+      store.set("bounds", bounds);
+      settings = { ...settings, x: bounds.x, y: bounds.y };
+      store.set("settings", settings);
+      sendSettings();
+    }, 250);
   };
   overlay.on("moved", saveBounds);
   overlay.on("resized", saveBounds);
@@ -179,11 +196,18 @@ app.whenReady().then(() => {
     registerHotkey(settings.hotkey);
   } catch {}
   apply(settings);
-  guard();
-  const interval = setInterval(guard, 3000);
+  const stopGameClient = startGameClient(
+    () => settings.autoLineup,
+    (update) => {
+      gameUpdate = update;
+      if (!main.isDestroyed()) main.webContents.send("game:update", update);
+    },
+  );
   app.on("before-quit", () => {
     quitting = true;
-    clearInterval(interval);
+    clearInterval(topmostTimer);
+    clearTimeout(boundsTimer);
+    stopGameClient();
   });
   ipcMain.handle("settings:get", (e) => {
     if (!trusted(e)) throw Error("Forbidden");
@@ -203,14 +227,42 @@ app.whenReady().then(() => {
     apply(next);
     settings = next;
     store.set("settings", next);
+    sendSettings();
     return next;
+  });
+  ipcMain.handle("game:get", (e) => {
+    if (!trusted(e) || e.sender !== main.webContents) throw Error("Forbidden");
+    return gameUpdate;
+  });
+  ipcMain.handle("overlay:control", (e, action) => {
+    if (!trusted(e) || !["toggle-lock", "center", "raise"].includes(action))
+      throw Error("Forbidden");
+    if (action === "toggle-lock") {
+      const next = { ...settings, locked: !settings.locked };
+      apply(next);
+      settings = next;
+      store.set("settings", settings);
+      sendSettings();
+    }
+    if (action === "center") {
+      const d = screen.getDisplayNearestPoint(
+        screen.getCursorScreenPoint(),
+      ).workArea;
+      const b = overlay.getBounds();
+      overlay.setPosition(
+        Math.round(d.x + (d.width - b.width) / 2),
+        Math.round(d.y + (d.height - b.height) / 2),
+      );
+      showOverlay(true);
+    }
+    if (action === "raise") showOverlay(true);
+    return settings;
   });
   ipcMain.handle("overlay", (e, v) => {
     if (!trusted(e) || typeof v !== "boolean") throw Error("Forbidden");
     showOverlay(v);
-    return !blocked;
+    return overlay.isVisible();
   });
-  ipcMain.handle("safety", () => blocked);
   ipcMain.handle("version", () => app.getVersion());
   ipcMain.on("state:publish", (e, v) => {
     if (
@@ -223,7 +275,7 @@ app.whenReady().then(() => {
     }
   });
   ipcMain.on("state:action", (e, v) => {
-    if (trusted(e) && !blocked) {
+    if (trusted(e)) {
       const parsed = commandSchema.safeParse(v);
       if (parsed.success) main.webContents.send("action", parsed.data);
     }

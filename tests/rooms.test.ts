@@ -129,3 +129,30 @@ it("expires idle rooms and rejects their old invite codes", async () => {
   await expired;
   expect((await enter(c, room.snapshot!.code)).ok).toBe(false);
 });
+it("allows only the first online member to import and hands over after disconnect", async () => {
+  const a = await client(),
+    b = await client(),
+    room = await enter(a),
+    joined = await enter(b, room.snapshot!.code);
+  expect(room.memberId).toBeTruthy();
+  expect(joined.memberId).not.toBe(room.memberId);
+  const command = {
+    kind: "importLineup",
+    id: crypto.randomUUID(),
+    revision: 0,
+    lineup: room.snapshot!.state.lineup,
+    reset: false,
+  };
+  expect((await send(b, "command", command)).ok).toBe(false);
+  expect((await send(a, "command", command)).ok).toBe(true);
+  await send(a, "leave", {});
+  expect(
+    (
+      await send(b, "command", {
+        ...command,
+        id: crypto.randomUUID(),
+        revision: 1,
+      })
+    ).ok,
+  ).toBe(true);
+});

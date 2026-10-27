@@ -1,7 +1,7 @@
 import { z } from "zod";
 import catalog from "./data/catalog.json";
 export { catalog };
-export const LIVE_MATCH_ENABLED = false as const;
+export const AUTOMATIC_LINEUP_ENABLED = true as const;
 export const spellSchema = z
   .string()
   .refine((id) => catalog.spells.some((s) => s.id === id), "Unknown spell");
@@ -26,6 +26,13 @@ export type State = {
   history: Record<string, (Timer | null)[]>;
 };
 export const commandSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("importLineup"),
+    id: z.string().uuid(),
+    revision: z.number().int().nonnegative(),
+    lineup: lineupSchema,
+    reset: z.boolean(),
+  }),
   z.object({
     kind: z.literal("lineup"),
     id: z.string().uuid(),
@@ -63,6 +70,7 @@ export type Reply = {
   error?: string;
   snapshot?: Snapshot;
   token?: string;
+  memberId?: string;
 };
 export function defaultLineup(): Row[] {
   return ["Darius", "LeeSin", "Ahri", "Jinx", "Thresh"].map((champion, i) => ({
@@ -105,6 +113,42 @@ export function applyCommand(
       timers: {},
       history: {},
     };
+  if (c.kind === "importLineup") {
+    if (c.reset)
+      return {
+        revision: state.revision + 1,
+        lineup: c.lineup,
+        timers: {},
+        history: {},
+      };
+    const timers = { ...state.timers },
+      history = { ...state.history };
+    const lineup = c.lineup.map((row) => {
+      const old = state.lineup.find((r) => r.id === row.id);
+      for (const slot of [0, 1] as const)
+        if (
+          !old ||
+          old.champion !== row.champion ||
+          old.spells[slot] !== row.spells[slot]
+        ) {
+          delete timers[`${row.id}:${slot}`];
+          delete history[`${row.id}:${slot}`];
+        }
+      return {
+        ...row,
+        haste: old?.champion === row.champion ? old.haste : null,
+      };
+    });
+    for (const key of new Set([
+      ...Object.keys(timers),
+      ...Object.keys(history),
+    ]))
+      if (!lineup.some((r) => key.startsWith(r.id + ":"))) {
+        delete timers[key];
+        delete history[key];
+      }
+    return { revision: state.revision + 1, lineup, timers, history };
+  }
   const row = state.lineup.find((r) => r.id === c.row);
   if (!row) throw Error("Unknown champion row");
   const key = `${row.id}:${c.slot}`;
@@ -147,6 +191,7 @@ export function applyCommand(
   return { ...state, revision: state.revision + 1, timers, history };
 }
 export const settingsSchema = z.object({
+  autoLineup: z.boolean().default(true),
   scale: z.number().min(0.65).max(1.6),
   opacity: z.number().min(0.3).max(1),
   portraitSize: z.number().min(24).max(64),
@@ -176,6 +221,7 @@ export const settingsSchema = z.object({
 });
 export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
+  autoLineup: true,
   scale: 1,
   opacity: 0.94,
   portraitSize: 42,

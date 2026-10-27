@@ -151,11 +151,23 @@ export function createRiftServer({
       room.touched = Date.now();
       void socket.join(room.code);
       broadcast(room);
-      return { ok: true, token, snapshot: snap(room) };
+      return {
+        ok: true,
+        token,
+        memberId: room.members.get(token)!.id,
+        snapshot: snap(room),
+      };
     });
     handle("command", (raw) => {
       if (!room || !rooms.has(room.code)) throw Error("Join a room first");
       const c = commandSchema.parse(raw);
+      if (
+        c.kind === "importLineup" &&
+        [...room.members.values()].find((m) => m.online)?.socketId !== socket.id
+      )
+        throw Error(
+          "Only the first connected participant can import a game lineup.",
+        );
       if (!room.seen.has(c.id)) {
         room.state = applyCommand(room.state, c, Date.now());
         room.seen.add(c.id);

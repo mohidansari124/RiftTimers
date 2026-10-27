@@ -497,6 +497,40 @@ main {
 }
 .drag {
   -webkit-app-region: drag;
+  cursor: grab;
+}
+.overlay header.overlay-handle {
+  min-height: 36px;
+  padding: 4px 0 8px;
+  gap: 7px;
+}
+.overlay .overlay-lock {
+  -webkit-app-region: no-drag;
+  margin-left: auto;
+  padding: 6px;
+  background: #242b35;
+  border: 1px solid #4b5360;
+  cursor: pointer;
+}
+.overlay footer {
+  min-height: 22px;
+  padding-top: 7px;
+  user-select: none;
+}
+.overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.overlay-actions button {
+  font-size: 11px;
+}
+.auto-lineup {
+  margin-bottom: 18px;
+}
+.auto-lineup p {
+  font-size: 12px;
 }
 .spell-wrap {
   position: relative;

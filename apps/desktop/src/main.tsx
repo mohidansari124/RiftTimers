@@ -15,6 +15,9 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  GripHorizontal,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import {
   catalog,
@@ -31,8 +34,7 @@ const roles = ["TOP", "JUNGLE", "MID", "BOTTOM", "SUPPORT"];
 const Spell = memo(function Spell({ row, slot }: { row: Row; slot: 0 | 1 }) {
   const timer = useRift((s) => s.state.timers[`${row.id}:${slot}`]),
     settings = useRift((s) => s.settings),
-    command = useRift((s) => s.command),
-    blocked = useRift((s) => s.blocked);
+    command = useRift((s) => s.command);
   const [tick, setTick] = useState(now()),
     [menu, setMenu] = useState(false),
     [adjust, setAdjust] = useState(-10);
@@ -48,11 +50,10 @@ const Spell = memo(function Spell({ row, slot }: { row: Row; slot: 0 | 1 }) {
   const spell = catalog.spells.find((s) => s.id === row.spells[slot])!,
     ms = remaining(timer, tick),
     seconds = Math.ceil(ms / 1000),
-    active = ms > 0 && !blocked;
+    active = ms > 0;
   return (
     <div className="spell-wrap">
       <button
-        disabled={blocked}
         className={`spell ${active ? "cooling" : ""}`}
         style={
           {
@@ -130,8 +131,7 @@ const Spell = memo(function Spell({ row, slot }: { row: Row; slot: 0 | 1 }) {
 });
 function Overlay({ preview = false }: { preview?: boolean }) {
   const rows = useRift((s) => s.state.lineup),
-    s = useRift((s) => s.settings),
-    blocked = useRift((s) => s.blocked);
+    s = useRift((s) => s.settings);
   return (
     <div
       className={`overlay ${s.background ? "" : "no-bg"}`}
@@ -142,37 +142,53 @@ function Overlay({ preview = false }: { preview?: boolean }) {
         opacity: preview ? s.opacity : 1,
       }}
     >
-      <header className={s.locked ? "" : "drag"}>
-        <span className="brand-gem">◇</span>
+      <header
+        className={`overlay-handle ${!preview && !s.locked ? "drag" : ""}`}
+        title={
+          s.locked
+            ? "Unlock to move the overlay"
+            : "Drag this bar to move the overlay"
+        }
+      >
+        <GripHorizontal size={18} className="brand-gem" />
         <b>
           RIFT<span>TIMERS</span>
         </b>
-        <small>SIM</small>
+        <button
+          className="overlay-lock"
+          aria-label={s.locked ? "Unlock overlay" : "Lock overlay"}
+          title={s.locked ? "Unlock overlay" : "Lock overlay"}
+          onClick={() => {
+            if (!preview && window.rift)
+              void window.rift.overlayControl("toggle-lock");
+            else void useRift.getState().save({ ...s, locked: !s.locked });
+          }}
+        >
+          {s.locked ? <Lock size={13} /> : <Unlock size={13} />}
+        </button>
       </header>
-      {blocked ? (
-        <p className="warning">Simulation paused</p>
-      ) : (
-        rows.map((row, i) => (
-          <div className="overlay-row" key={row.id}>
-            <div className="portrait">
-              <img
-                style={{ width: s.portraitSize, height: s.portraitSize }}
-                src={asset("champion", row.champion)}
-                alt={row.champion}
-              />
-              <small>{roles[i]}</small>
-            </div>
-            <Spell row={row} slot={0} />
-            <Spell row={row} slot={1} />
+      {rows.map((row, i) => (
+        <div className="overlay-row" key={row.id}>
+          <div className="portrait">
+            <img
+              style={{ width: s.portraitSize, height: s.portraitSize }}
+              src={asset("champion", row.champion)}
+              alt={row.champion}
+            />
+            <small>{roles[i]}</small>
           </div>
-        ))
-      )}
-      <footer>STANDALONE SIMULATION</footer>
+          <Spell row={row} slot={0} />
+          <Spell row={row} slot={1} />
+        </div>
+      ))}
+      <footer className={!preview && !s.locked ? "drag" : ""}>
+        {s.locked ? "POSITION LOCKED" : "⋮⋮ DRAG HEADER OR HERE TO MOVE"}
+      </footer>
     </div>
   );
 }
 function Lineup() {
-  const { state, command } = useRift(),
+  const { state, command, settings, save, gameStatus } = useRift(),
     [preset, setPreset] = useState(""),
     [presets, setPresets] = useState<Record<string, Row[]>>(() => {
       try {
@@ -203,6 +219,23 @@ function Lineup() {
           Reset lineup
         </button>
       </div>
+      <section className="panel auto-lineup">
+        <label className="toggle">
+          Load opponents and summoner spells when a game starts
+          <input
+            type="checkbox"
+            checked={settings.autoLineup}
+            onChange={(e) =>
+              void save({ ...settings, autoLineup: e.target.checked })
+            }
+          />
+        </label>
+        <p role="status">{gameStatus}</p>
+        <small>
+          Summoner’s Rift only. In shared rooms, the first connected participant
+          supplies the automatic lineup. Manual edits remain available.
+        </small>
+      </section>
       <datalist id="champions">
         {catalog.champions.map((c) => (
           <option key={c.id} value={c.id}>
@@ -478,6 +511,19 @@ function OverlaySettings() {
       </div>
       <div className="settings-grid">
         <section className="panel">
+          <p className="note">
+            Drag the overlay’s wide header or bottom grip. Its lock button
+            toggles movement. Use Borderless mode in League if fullscreen covers
+            the overlay.
+          </p>
+          <div className="overlay-actions">
+            <button onClick={() => void window.rift?.overlayControl("center")}>
+              Center overlay on this screen
+            </button>
+            <button onClick={() => void window.rift?.overlayControl("raise")}>
+              Bring overlay to front
+            </button>
+          </div>
           {ranges.map(([key, label, min, max, step]) => (
             <label className="slider" key={key}>
               <span>
@@ -552,7 +598,7 @@ function OverlaySettings() {
 }
 function General() {
   const { settings: s, save, code } = useRift(),
-    [version, setVersion] = useState("0.1.0"),
+    [version, setVersion] = useState("0.1.2"),
     [update, setUpdate] = useState("");
   useEffect(() => {
     void window.rift?.version().then(setVersion);
@@ -613,11 +659,11 @@ function General() {
       <section className="panel compliance">
         <ShieldCheck />
         <div>
-          <h3>Simulation by design</h3>
+          <h3>Automatic setup, manual timers</h3>
           <p>
-            Live-match integration is disabled. Use only outside League matches.
-            The desktop simulator pauses when the League game process is
-            detected.
+            Automatic setup reads champion picks and summoner spell selections
+            from Riot’s local game API. Cooldown timers remain manual; casts and
+            cooldown modifiers are not detected automatically.
           </p>
           <p>
             Data Dragon {catalog.patch} · {catalog.champions.length} champions ·
@@ -636,7 +682,7 @@ function General() {
   );
 }
 function Dashboard({ navigate }: { navigate: (s: string) => void }) {
-  const { state, status, code, members, blocked } = useRift();
+  const { state, status, code, members, gameStatus } = useRift();
   return (
     <>
       <div className="section-title">
@@ -656,7 +702,7 @@ function Dashboard({ navigate }: { navigate: (s: string) => void }) {
           <b>
             Simulation <ShieldCheck size={17} />
           </b>
-          <small>Live integration disabled</small>
+          <small>{gameStatus}</small>
         </div>
         <div className="panel">
           <span>PARTY STATUS</span>
@@ -726,7 +772,6 @@ function Dashboard({ navigate }: { navigate: (s: string) => void }) {
           </div>
           <button
             className="primary wide"
-            disabled={blocked}
             onClick={() => {
               if (window.rift) void window.rift.overlay(true);
               else
@@ -767,7 +812,7 @@ function Dashboard({ navigate }: { navigate: (s: string) => void }) {
 }
 function App() {
   const [page, setPage] = useState("Dashboard"),
-    { error, setError, blocked, status } = useRift();
+    { error, setError, status } = useRift();
   const nav = [
     ["Dashboard", LayoutDashboard],
     ["Multiplayer", Users],
@@ -803,7 +848,7 @@ function App() {
           <div>
             <span className="status-dot" /> {status}
           </div>
-          <small>RiftTimers / v0.1.0</small>
+          <small>RiftTimers / v0.1.2</small>
         </div>
       </aside>
       <main>
@@ -812,17 +857,11 @@ function App() {
             Workspace <span>/</span> <b>{page}</b>
           </span>
           <div>
-            <span className="sim-tag">SIMULATION ONLY</span>
+            <span className="sim-tag">MANUAL TIMERS</span>
             <span className="avatar">RT</span>
           </div>
         </div>
         <div className="content">
-          {blocked && (
-            <div className="warning">
-              Simulation paused: League is running, or the process safety check
-              is unavailable.
-            </div>
-          )}
           {error && (
             <div role="alert" className="error">
               {error}

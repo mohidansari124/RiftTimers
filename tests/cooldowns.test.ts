@@ -7,11 +7,11 @@ import {
   commandSchema,
   settingsSchema,
   defaultSettings,
-  LIVE_MATCH_ENABLED,
+  AUTOMATIC_LINEUP_ENABLED,
   type Command,
 } from "../packages/shared/src/index";
 const make = (
-  kind: Exclude<Command["kind"], "lineup">,
+  kind: Exclude<Command["kind"], "lineup" | "importLineup">,
   revision = 0,
   seconds?: number,
 ): Command => ({
@@ -96,8 +96,8 @@ describe("cooldown engine", () => {
       estimate: true,
     });
   });
-  it("disables live mode and rejects insecure remote servers", () => {
-    expect(LIVE_MATCH_ENABLED).toBe(false);
+  it("enables lineup imports and rejects insecure remote servers", () => {
+    expect(AUTOMATIC_LINEUP_ENABLED).toBe(true);
     expect(
       settingsSchema.safeParse({
         ...defaultSettings,
