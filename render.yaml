@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: rifttimers-server
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npx --yes pnpm@11.25.0 --filter @rift/server... install --frozen-lockfile --prod=false && npx --yes pnpm@11.25.0 --filter @rift/server build
+    startCommand: node apps/server/dist/index.js
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: HOST
+        value: 0.0.0.0
+      - key: ALLOWED_ORIGINS
+        value: "null"
